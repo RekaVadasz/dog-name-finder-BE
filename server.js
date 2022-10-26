@@ -112,7 +112,7 @@ app.post('/addnewdog', async (req, res) => {
     } catch (error) {
         res.send(error)
     }
-    const uploadPath = '../frontend/public/dog-images/' + req.files.file.name; //feltöltött fájlok helye
+    const uploadPath = '../frontend/public/dog-images/' + req.files.file.name;
 
     req.files.file.mv(uploadPath, function (err) {
         if (err)
