@@ -1,9 +1,5 @@
 var admin = require("firebase-admin");
-require('dotenv').config(); //loads any file in .env into an environmental variable
-
-//console.log(process.env)
-
-//var serviceAccount = require("./doggobase-development-6ff8f0a63a66.json");
+require('dotenv').config(); 
 
 var serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
 
@@ -13,4 +9,3 @@ admin.initializeApp({
 
 const db = admin.firestore();
 module.exports = { admin, db }; 
-
