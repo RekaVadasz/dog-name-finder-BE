@@ -1,11 +1,13 @@
 const express = require('express');
 const app =express();
-const fs = require('fs');
+//const fs = require('fs');
 const fileUpload = require('express-fileupload');
 const bodyParser = require('body-parser');
 const { db } = require('./admin');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
+const {cloudinary} = require('./cloudinary');
+//const {Storage} = require('@google-cloud/storage');
 
 require('dotenv').config();
 
@@ -16,7 +18,7 @@ app.use(fileUpload());
 app.use(express.static('../frontend'));
 app.use(cors());
 
-const port = 5000;
+const port = process.env.PORT || 5000;
 
 // - - - - Register new user in Firebase - - - - 
 
@@ -100,8 +102,10 @@ app.get('/api/firebase', async (req, res) => {
 // - - - - Save a new dog to database - - - - 
 
 app.post('/addnewdog', async (req, res) => {
+    // add dog data to database
     const newDog = JSON.parse(req.body.object)
 
+    /*
     const dogsRef = db.collection('dogs');
     const snapShot = await dogsRef.get();
     newDog.id = snapShot.size + 1;
@@ -111,14 +115,33 @@ app.post('/addnewdog', async (req, res) => {
         const response = dogsRef.add(newDog);
     } catch (error) {
         res.send(error)
+    } */
+
+    // add image to Storage
+    try {
+        const fileString = newDog.image;
+        console.log(fileString)
+        const uploadedResponse = await cloudinary.uploader.upload(fileString, {
+            upload_preset: 'doggo_upload'
+        })
+        console.log(uploadedResponse)
+        res.sendStatus(200)
+    } catch (error) {
+        console.error(error)
+        res.sendStatus(500)
     }
-    const uploadPath = '../frontend/public/dog-images/' + req.files.file.name;
+
+
+
+
+    //res.sendStatus(200)
+    /* const uploadPath = '../frontend/public/dog-images/' + req.files.file.name;
 
     req.files.file.mv(uploadPath, function (err) {
         if (err)
             return res.status(500).send(err);
         res.send(`Image uploaded and ${newDog.name} added to database!`);
-    })
+    }) */
 })
 
 // - - - - Search dogs in database - - - -
@@ -185,6 +208,6 @@ app.get('/api/search', async (req, res) => {
     res.send(newDogList)
 });
 
-app.listen(process.env.PORT || port, () => {
+app.listen(port, () => {
     console.log('You are connected')
 })
