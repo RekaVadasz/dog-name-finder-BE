@@ -48,9 +48,9 @@ app.post('/register', async (req, res) => {
 app.post('/login', async (req, res) => {
     const username = req.body.username;
     const plainTextPassword = req.body.password;
+
     const usersRef = db.collection('users');
     const snapShot = await usersRef.get();
-
     let userFound = false;
 
     if (!snapShot.empty) {
@@ -60,11 +60,12 @@ app.post('/login', async (req, res) => {
                 const correctPassword = bcrypt.compareSync(plainTextPassword, doc.data().password);
                 if (correctPassword) {
                     const userData = {
+                        userId: doc.id,
                         username: doc.data().username,
-                        favs: doc.data().favs,
-                        sent: doc.data().sent
+                        favs: doc.data().favs
                     }
                     res.send(userData) 
+
                 } else { 
                     res.sendStatus(401) 
                 }
@@ -77,12 +78,44 @@ app.post('/login', async (req, res) => {
     }
 })
 
+// - - - - Save favourites to user data - - - - 
+
+app.put('/update', async (req, res) => {
+    const userId = req.query.userId;
+    const favId = parseInt(req.query.favId, 10);
+    
+    const usersRef = db.collection('users');
+    const snapShot = await usersRef.doc(userId).get();
+    const currentFavs = snapShot.data().favs;
+
+    let newFavs = [];
+
+    if (currentFavs.includes(favId)) {
+        newFavs = currentFavs.filter((fav) => {
+            return fav !== favId
+        })
+    } else {
+        newFavs = [...currentFavs, favId]
+    }
+
+    try {
+        usersRef.doc(userId).update( {
+            favs: newFavs
+        }) 
+        console.log(newFavs)
+        res.send({favs : newFavs})
+    } catch (error) {
+        console.log(error)
+        res.status(500)
+    }
+})
+
 // - - - - GET to have all dogs - - - - 
 
 app.get('/api/firebase', async (req, res) => {
     try {
         const dogsRef = db.collection('dogs');
-        const snapShot = await dogsRef.get();
+        const snapShot = await dogsRef.orderBy('id').get();
         
         let dogList = [];
 
@@ -102,20 +135,21 @@ app.post('/addnewdog', async (req, res) => {
     const newDog = JSON.parse(req.body.object)
     
     try {
-        // add image to Storage
+        // add image to Cloudinary
         const fileString = newDog.image;
 
         const uploadedResponse = await cloudinary.uploader.upload(fileString, {
             upload_preset: 'doggo_upload'
         })
-        console.log(uploadedResponse)
+        //console.log(uploadedResponse)
         newDog.imageSrc = uploadedResponse.url;
         console.log('Image added to Cloudinary')
         delete newDog.image;
         
         try {
-            // add dog data to database
+            // add dog data to Firestore
             const dogsRef = db.collection('dogs');
+
             const snapShot = await dogsRef.get();
             newDog.id = snapShot.size + 1;
 
