@@ -102,39 +102,46 @@ app.get('/api/firebase', async (req, res) => {
 // - - - - Save a new dog to database - - - - 
 
 app.post('/addnewdog', async (req, res) => {
-    // add dog data to database
     const newDog = JSON.parse(req.body.object)
-
-    /*
-    const dogsRef = db.collection('dogs');
-    const snapShot = await dogsRef.get();
-    newDog.id = snapShot.size + 1;
-    newDog.imageSrc = `/dog-images/${req.files.file.name}`;
-
+    
     try {
-        const response = dogsRef.add(newDog);
-    } catch (error) {
-        res.send(error)
-    } */
-
-    // add image to Storage
-    try {
+        // add image to Storage
         const fileString = newDog.image;
-        console.log(fileString)
+
         const uploadedResponse = await cloudinary.uploader.upload(fileString, {
             upload_preset: 'doggo_upload'
         })
         console.log(uploadedResponse)
-        res.sendStatus(200)
+        newDog.imageSrc = uploadedResponse.url;
+        
+        // add dog data to database
+        const dogsRef = db.collection('dogs');
+        const snapShot = await dogsRef.get();
+        newDog.id = snapShot.size + 1;
+
+        console.log('Image added to Cloudinary')
+    
+        try {
+            const response = dogsRef.add(newDog);
+            res.send(`Image uploaded and ${newDog.name} added to database!`);
+    
+        } catch (error) {
+            console.log('Adding dog to Firebase failed')
+            console.error(error)
+            res.status(500)   
+        } 
+
     } catch (error) {
+        console.error('Something failed')
         console.error(error)
-        res.sendStatus(500)
+        res.status(500)
     }
 
 
 
 
-    //res.sendStatus(200)
+
+
     /* const uploadPath = '../frontend/public/dog-images/' + req.files.file.name;
 
     req.files.file.mv(uploadPath, function (err) {
