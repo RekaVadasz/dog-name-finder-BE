@@ -1,13 +1,11 @@
 const express = require('express');
 const app =express();
-//const fs = require('fs');
 const fileUpload = require('express-fileupload');
 const bodyParser = require('body-parser');
 const { db } = require('./admin');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
 const {cloudinary} = require('./cloudinary');
-//const {Storage} = require('@google-cloud/storage');
 
 require('dotenv').config();
 
@@ -35,8 +33,7 @@ app.post('/register', async (req, res) => {
             const user = {
                 'username': username,
                 'password': hash, 
-                'favs': [],
-                'sent': []
+                'favs': []
             }
             newUser.set(user)
             res.send('new user registered')
@@ -113,15 +110,15 @@ app.post('/addnewdog', async (req, res) => {
         })
         console.log(uploadedResponse)
         newDog.imageSrc = uploadedResponse.url;
-        
-        // add dog data to database
-        const dogsRef = db.collection('dogs');
-        const snapShot = await dogsRef.get();
-        newDog.id = snapShot.size + 1;
-
         console.log('Image added to Cloudinary')
-    
+        delete newDog.image;
+        
         try {
+            // add dog data to database
+            const dogsRef = db.collection('dogs');
+            const snapShot = await dogsRef.get();
+            newDog.id = snapShot.size + 1;
+
             const response = dogsRef.add(newDog);
             res.send(`Image uploaded and ${newDog.name} added to database!`);
     
@@ -132,23 +129,10 @@ app.post('/addnewdog', async (req, res) => {
         } 
 
     } catch (error) {
-        console.error('Something failed')
+        console.error('Image upload failed')
         console.error(error)
-        res.status(500)
+        res.sendStatus(500)
     }
-
-
-
-
-
-
-    /* const uploadPath = '../frontend/public/dog-images/' + req.files.file.name;
-
-    req.files.file.mv(uploadPath, function (err) {
-        if (err)
-            return res.status(500).send(err);
-        res.send(`Image uploaded and ${newDog.name} added to database!`);
-    }) */
 })
 
 // - - - - Search dogs in database - - - -
