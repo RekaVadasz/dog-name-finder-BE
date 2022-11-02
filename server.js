@@ -1,11 +1,11 @@
 const express = require('express');
 const app =express();
-const fs = require('fs');
 const fileUpload = require('express-fileupload');
 const bodyParser = require('body-parser');
 const { db } = require('./admin');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
+const {cloudinary} = require('./cloudinary');
 
 require('dotenv').config();
 
@@ -16,7 +16,7 @@ app.use(fileUpload());
 app.use(express.static('../frontend'));
 app.use(cors());
 
-const port = 5000;
+const port = process.env.PORT || 5000;
 
 // - - - - Register new user in Firebase - - - - 
 
@@ -33,8 +33,7 @@ app.post('/register', async (req, res) => {
             const user = {
                 'username': username,
                 'password': hash, 
-                'favs': [],
-                'sent': []
+                'favs': []
             }
             newUser.set(user)
             res.send('new user registered')
@@ -49,9 +48,9 @@ app.post('/register', async (req, res) => {
 app.post('/login', async (req, res) => {
     const username = req.body.username;
     const plainTextPassword = req.body.password;
+
     const usersRef = db.collection('users');
     const snapShot = await usersRef.get();
-
     let userFound = false;
 
     if (!snapShot.empty) {
@@ -61,11 +60,12 @@ app.post('/login', async (req, res) => {
                 const correctPassword = bcrypt.compareSync(plainTextPassword, doc.data().password);
                 if (correctPassword) {
                     const userData = {
+                        userId: doc.id,
                         username: doc.data().username,
-                        favs: doc.data().favs,
-                        sent: doc.data().sent
+                        favs: doc.data().favs
                     }
                     res.send(userData) 
+
                 } else { 
                     res.sendStatus(401) 
                 }
@@ -78,12 +78,44 @@ app.post('/login', async (req, res) => {
     }
 })
 
+// - - - - Save favourites to user data - - - - 
+
+app.put('/update', async (req, res) => {
+    const userId = req.query.userId;
+    const favId = parseInt(req.query.favId, 10);
+    
+    const usersRef = db.collection('users');
+    const snapShot = await usersRef.doc(userId).get();
+    const currentFavs = snapShot.data().favs;
+
+    let newFavs = [];
+
+    if (currentFavs.includes(favId)) {
+        newFavs = currentFavs.filter((fav) => {
+            return fav !== favId
+        })
+    } else {
+        newFavs = [...currentFavs, favId]
+    }
+
+    try {
+        usersRef.doc(userId).update( {
+            favs: newFavs
+        }) 
+        console.log(newFavs)
+        res.send({favs : newFavs})
+    } catch (error) {
+        console.log(error)
+        res.status(500)
+    }
+})
+
 // - - - - GET to have all dogs - - - - 
 
 app.get('/api/firebase', async (req, res) => {
     try {
         const dogsRef = db.collection('dogs');
-        const snapShot = await dogsRef.get();
+        const snapShot = await dogsRef.orderBy('id').get();
         
         let dogList = [];
 
@@ -101,24 +133,40 @@ app.get('/api/firebase', async (req, res) => {
 
 app.post('/addnewdog', async (req, res) => {
     const newDog = JSON.parse(req.body.object)
-
-    const dogsRef = db.collection('dogs');
-    const snapShot = await dogsRef.get();
-    newDog.id = snapShot.size + 1;
-    newDog.imageSrc = `/dog-images/${req.files.file.name}`;
-
+    
     try {
-        const response = dogsRef.add(newDog);
-    } catch (error) {
-        res.send(error)
-    }
-    const uploadPath = '../frontend/public/dog-images/' + req.files.file.name;
+        // add image to Cloudinary
+        const fileString = newDog.image;
 
-    req.files.file.mv(uploadPath, function (err) {
-        if (err)
-            return res.status(500).send(err);
-        res.send(`Image uploaded and ${newDog.name} added to database!`);
-    })
+        const uploadedResponse = await cloudinary.uploader.upload(fileString, {
+            upload_preset: 'doggo_upload'
+        })
+        //console.log(uploadedResponse)
+        newDog.imageSrc = uploadedResponse.url;
+        console.log('Image added to Cloudinary')
+        delete newDog.image;
+        
+        try {
+            // add dog data to Firestore
+            const dogsRef = db.collection('dogs');
+
+            const snapShot = await dogsRef.get();
+            newDog.id = snapShot.size + 1;
+
+            const response = dogsRef.add(newDog);
+            res.send(`Image uploaded and ${newDog.name} added to database!`);
+    
+        } catch (error) {
+            console.log('Adding dog to Firebase failed')
+            console.error(error)
+            res.status(500)   
+        } 
+
+    } catch (error) {
+        console.error('Image upload failed')
+        console.error(error)
+        res.sendStatus(500)
+    }
 })
 
 // - - - - Search dogs in database - - - -
@@ -185,6 +233,6 @@ app.get('/api/search', async (req, res) => {
     res.send(newDogList)
 });
 
-app.listen(process.env.PORT || port, () => {
+app.listen(port, () => {
     console.log('You are connected')
 })
