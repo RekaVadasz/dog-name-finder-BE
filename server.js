@@ -9,9 +9,9 @@ const {cloudinary} = require('./cloudinary');
 
 require('dotenv').config();
 
-app.use(express.json());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.json({limit: '50mb'}));
+app.use(bodyParser.json({limit: '50mb'}));
+app.use(bodyParser.urlencoded({limit: '50mb', extended: true}));
 app.use(fileUpload());
 app.use(express.static('../frontend'));
 app.use(cors());
@@ -132,8 +132,7 @@ app.get('/api/firebase', async (req, res) => {
 // - - - - Save a new dog to database - - - - 
 
 app.post('/addnewdog', async (req, res) => {
-    const newDog = JSON.parse(req.body.object)
-    
+    const newDog = req.body;
     try {
         // add image to Cloudinary
         const fileString = newDog.image;
@@ -141,7 +140,7 @@ app.post('/addnewdog', async (req, res) => {
         const uploadedResponse = await cloudinary.uploader.upload(fileString, {
             upload_preset: 'doggo_upload'
         })
-        //console.log(uploadedResponse)
+
         newDog.imageSrc = uploadedResponse.url;
         console.log('Image added to Cloudinary')
         delete newDog.image;
@@ -166,7 +165,7 @@ app.post('/addnewdog', async (req, res) => {
         console.error('Image upload failed')
         console.error(error)
         res.sendStatus(500)
-    }
+    } 
 })
 
 // - - - - Search dogs in database - - - -
